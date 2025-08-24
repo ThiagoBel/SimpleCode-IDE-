@@ -1,0 +1,8 @@
+Hello!
+Thank you for using Tasil!
+Follow these instructions to ensure Tasil works properly:
+
+1. Place the Tasil folder in the same path as your main file.
+2. Do not change any file or folder names within the Tasil folder (this may corrupt Tasil and cause your code to malfunction).
+
+Please note that Tasil is quite limited for Linux users, as the creator of Tasil (me) does not have the Linux operating system😔
