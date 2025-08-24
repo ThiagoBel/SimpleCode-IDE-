@@ -1,5 +1,5 @@
 #include <iostream>
-#include <sstream>   // <<<<< necessário para o ostringstream
+#include <sstream>
 #include <ctime>
 
 namespace sc

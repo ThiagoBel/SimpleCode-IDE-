@@ -20,26 +20,100 @@ import java.util.regex.*;
 
 public class SimpleCode {
     public static void autoCompleteVSCodeStyle(JTextArea textArea) {
-        final List<String> keywords;
-        Path keywordsFile = Paths.get("keywords.txt");
+        final List<String> baseKeywords = new ArrayList<>();
+        final List<String> keywords = new ArrayList<>(baseKeywords);
+        final JPopupMenu suggestionsPopup = new JPopupMenu();
+        suggestionsPopup.setFocusable(false);
+        final List<JMenuItem> currentItems = new ArrayList<>();
+        final int[] selectedIndex = { -1 };
 
+        Path keywordsFile = Paths.get("keywords.txt");
         if (Files.exists(keywordsFile)) {
-            List<String> tempKeywords;
             try {
-                tempKeywords = Files.readAllLines(keywordsFile);
+                baseKeywords.addAll(Files.readAllLines(keywordsFile));
             } catch (IOException e) {
                 e.printStackTrace();
-                tempKeywords = new ArrayList<>();
             }
-            keywords = tempKeywords;
-        } else {
-            keywords = new ArrayList<>();
         }
+        keywords.addAll(baseKeywords);
 
-        JPopupMenu suggestionsPopup = new JPopupMenu();
-        suggestionsPopup.setFocusable(false);
-        List<JMenuItem> currentItems = new ArrayList<>();
-        int[] selectedIndex = { -1 };
+        Runnable updateKeywordsFromIncludes = () -> {
+            keywords.clear();
+            keywords.addAll(baseKeywords);
+
+            String text = textArea.getText();
+            Pattern includePattern = Pattern.compile("#include\\s+\"([^\"]+)\"");
+            Matcher matcher = includePattern.matcher(text);
+
+            while (matcher.find()) {
+                String includePath = matcher.group(1);
+                Path headerPath = Paths.get(includePath);
+
+                if (Files.exists(headerPath)) {
+                    try {
+                        List<String> linhas = Files.readAllLines(headerPath);
+
+                        for (String linha : linhas) {
+                            linha = linha.trim();
+                            if (linha.isEmpty() || linha.startsWith("//") || linha.startsWith("/*")
+                                    || linha.startsWith("*")) {
+                                continue;
+                            }
+
+                            Matcher funcMatcher = Pattern.compile(
+                                    "(?:void|int|double|float|char|bool|std::string)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\(")
+                                    .matcher(linha);
+                            while (funcMatcher.find()) {
+                                String nomeFunc = funcMatcher.group(1) + "()";
+                                if (!keywords.contains(nomeFunc))
+                                    keywords.add(nomeFunc);
+                            }
+
+                            Matcher classMatcher = Pattern.compile("\\b(class|struct)\\s+([a-zA-Z_][a-zA-Z0-9_]*)")
+                                    .matcher(linha);
+                            while (classMatcher.find()) {
+                                String nomeClasse = classMatcher.group(2);
+                                if (!keywords.contains(nomeClasse))
+                                    keywords.add(nomeClasse);
+                            }
+
+                            Matcher varMatcher = Pattern.compile(
+                                    "(?:int|double|float|char|bool|std::string)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*;")
+                                    .matcher(linha);
+                            while (varMatcher.find()) {
+                                String nomeVar = varMatcher.group(1);
+                                if (!keywords.contains(nomeVar))
+                                    keywords.add(nomeVar);
+                            }
+                        }
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+
+        };
+
+        textArea.getDocument().addDocumentListener(new DocumentListener() {
+            private void update() {
+                updateKeywordsFromIncludes.run();
+            }
+
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                update();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                update();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                update();
+            }
+        });
 
         textArea.addKeyListener(new KeyAdapter() {
             @Override
@@ -48,22 +122,19 @@ public class SimpleCode {
 
                 if (suggestionsPopup.isVisible()) {
                     if (e.getKeyCode() == KeyEvent.VK_DOWN) {
-                        if (!currentItems.isEmpty()) {
+                        if (!currentItems.isEmpty())
                             selectedIndex[0] = (selectedIndex[0] + 1) % currentItems.size();
-                            highlightItem();
-                        }
+                        highlightItem();
                         return;
                     } else if (e.getKeyCode() == KeyEvent.VK_UP) {
-                        if (!currentItems.isEmpty()) {
+                        if (!currentItems.isEmpty())
                             selectedIndex[0] = (selectedIndex[0] - 1 + currentItems.size()) % currentItems.size();
-                            highlightItem();
-                        }
+                        highlightItem();
                         return;
                     } else if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-                        if (selectedIndex[0] >= 0 && selectedIndex[0] < currentItems.size()) {
+                        if (selectedIndex[0] >= 0 && selectedIndex[0] < currentItems.size())
                             currentItems.get(selectedIndex[0]).doClick();
-                            e.consume();
-                        }
+                        e.consume();
                         return;
                     } else if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
                         suggestionsPopup.setVisible(false);
@@ -82,7 +153,6 @@ public class SimpleCode {
                 }
 
                 String currentWord = text.substring(start, pos);
-
                 suggestionsPopup.setVisible(false);
                 suggestionsPopup.removeAll();
                 currentItems.clear();
@@ -91,19 +161,15 @@ public class SimpleCode {
                 if (!currentWord.isEmpty()) {
                     int maxSuggestions = 6;
                     int count = 0;
-
                     for (String keyword : keywords) {
                         if (keyword.toLowerCase().startsWith(currentWord.toLowerCase())) {
-
                             int[] startPos = { start };
-
                             JMenuItem item = new JMenuItem(keyword);
                             item.addActionListener(_ -> {
                                 try {
                                     int posAtual = textArea.getCaretPosition();
                                     int length = Math.max(0, Math.min(posAtual - startPos[0],
                                             textArea.getDocument().getLength() - startPos[0]));
-
                                     textArea.getDocument().remove(startPos[0], length);
                                     textArea.getDocument().insertString(startPos[0], keyword, null);
                                     textArea.setCaretPosition(startPos[0] + keyword.length());
@@ -112,10 +178,8 @@ public class SimpleCode {
                                     ex.printStackTrace();
                                 }
                             });
-
                             suggestionsPopup.add(item);
                             currentItems.add(item);
-
                             count++;
                             if (count >= maxSuggestions)
                                 break;
@@ -129,7 +193,6 @@ public class SimpleCode {
                         } catch (BadLocationException ex) {
                             ex.printStackTrace();
                         }
-
                     }
                 }
             }
