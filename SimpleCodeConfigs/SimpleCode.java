@@ -1,4 +1,5 @@
 package SimpleCodeConfigs;
+
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
@@ -18,7 +19,133 @@ import java.util.List;
 import java.util.regex.*;
 
 public class SimpleCode {
+    public static void autoCompleteVSCodeStyle(JTextArea textArea) {
+        final List<String> keywords;
+        Path keywordsFile = Paths.get("keywords.txt");
+
+        if (Files.exists(keywordsFile)) {
+            List<String> tempKeywords;
+            try {
+                tempKeywords = Files.readAllLines(keywordsFile);
+            } catch (IOException e) {
+                e.printStackTrace();
+                tempKeywords = new ArrayList<>();
+            }
+            keywords = tempKeywords;
+        } else {
+            keywords = new ArrayList<>();
+        }
+
+        JPopupMenu suggestionsPopup = new JPopupMenu();
+        suggestionsPopup.setFocusable(false);
+        List<JMenuItem> currentItems = new ArrayList<>();
+        int[] selectedIndex = { -1 };
+
+        textArea.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyReleased(KeyEvent e) {
+                int pos = textArea.getCaretPosition();
+
+                if (suggestionsPopup.isVisible()) {
+                    if (e.getKeyCode() == KeyEvent.VK_DOWN) {
+                        if (!currentItems.isEmpty()) {
+                            selectedIndex[0] = (selectedIndex[0] + 1) % currentItems.size();
+                            highlightItem();
+                        }
+                        return;
+                    } else if (e.getKeyCode() == KeyEvent.VK_UP) {
+                        if (!currentItems.isEmpty()) {
+                            selectedIndex[0] = (selectedIndex[0] - 1 + currentItems.size()) % currentItems.size();
+                            highlightItem();
+                        }
+                        return;
+                    } else if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                        if (selectedIndex[0] >= 0 && selectedIndex[0] < currentItems.size()) {
+                            currentItems.get(selectedIndex[0]).doClick();
+                            e.consume();
+                        }
+                        return;
+                    } else if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                        suggestionsPopup.setVisible(false);
+                        return;
+                    }
+                }
+
+                String text = textArea.getText();
+                int start = pos - 1;
+                while (start >= 0 && Character.isLetterOrDigit(text.charAt(start)))
+                    start--;
+                start++;
+                if (pos <= start) {
+                    suggestionsPopup.setVisible(false);
+                    return;
+                }
+
+                String currentWord = text.substring(start, pos);
+
+                suggestionsPopup.setVisible(false);
+                suggestionsPopup.removeAll();
+                currentItems.clear();
+                selectedIndex[0] = -1;
+
+                if (!currentWord.isEmpty()) {
+                    int maxSuggestions = 6;
+                    int count = 0;
+
+                    for (String keyword : keywords) {
+                        if (keyword.toLowerCase().startsWith(currentWord.toLowerCase())) {
+
+                            int[] startPos = { start };
+
+                            JMenuItem item = new JMenuItem(keyword);
+                            item.addActionListener(_ -> {
+                                try {
+                                    int posAtual = textArea.getCaretPosition();
+                                    int length = Math.max(0, Math.min(posAtual - startPos[0],
+                                            textArea.getDocument().getLength() - startPos[0]));
+
+                                    textArea.getDocument().remove(startPos[0], length);
+                                    textArea.getDocument().insertString(startPos[0], keyword, null);
+                                    textArea.setCaretPosition(startPos[0] + keyword.length());
+                                    suggestionsPopup.setVisible(false);
+                                } catch (BadLocationException ex) {
+                                    ex.printStackTrace();
+                                }
+                            });
+
+                            suggestionsPopup.add(item);
+                            currentItems.add(item);
+
+                            count++;
+                            if (count >= maxSuggestions)
+                                break;
+                        }
+                    }
+
+                    if (!currentItems.isEmpty()) {
+                        try {
+                            Rectangle caret = textArea.modelToView2D(pos).getBounds();
+                            suggestionsPopup.show(textArea, caret.x, caret.y + caret.height);
+                        } catch (BadLocationException ex) {
+                            ex.printStackTrace();
+                        }
+
+                    }
+                }
+            }
+
+            private void highlightItem() {
+                for (int i = 0; i < currentItems.size(); i++) {
+                    JMenuItem item = currentItems.get(i);
+                    item.setArmed(i == selectedIndex[0]);
+                    item.setBackground(i == selectedIndex[0] ? Color.LIGHT_GRAY : null);
+                }
+            }
+        });
+    }
+
     private static Path path = Paths.get("ExecSimpleCode.cpp");
+
     public static void main(String[] args) {
         JFrame main = new JFrame("SimpleCode");
         main.setSize(500, 500);
@@ -37,7 +164,7 @@ public class SimpleCode {
         textArea.setLineWrap(true);
         textArea.setWrapStyleWord(true);
         textArea.setFocusTraversalKeysEnabled(false);
-
+        autoCompleteVSCodeStyle(textArea);
         String originalContent = "";
         if (Files.exists(path)) {
             try {
@@ -51,7 +178,10 @@ public class SimpleCode {
 
         JTextArea lineNumbers = new JTextArea("1");
         lineNumbers.setEditable(false);
-        lineNumbers.setFont(new Font("Consolas", Font.PLAIN, 18));
+        int digitos = Integer.toString(textArea.getLineCount()).length();
+        int tamanhoBase = textArea.getFont().getSize();
+        int novoTamanho = Math.max(tamanhoBase - (digitos - 1) * 2, 10);
+        lineNumbers.setFont(new Font("Consolas", Font.PLAIN, novoTamanho));
         lineNumbers.setFocusable(false);
         lineNumbers.setBorder(BorderFactory.createEmptyBorder(0, 5, 0, 5));
         lineNumbers.setBackground(Color.WHITE);
@@ -66,11 +196,7 @@ public class SimpleCode {
                     sb.append(i).append("\n");
                 }
                 lineNumbers.setText(sb.toString());
-
-                int digitos = String.valueOf(linhas).length();
-                int tamanhoBase = 18;
-                int novoTamanho = Math.max(tamanhoBase - (digitos - 1) * 2, 10);
-                lineNumbers.setFont(new Font("Consolas", Font.PLAIN, novoTamanho));
+                lineNumbers.setFont(textArea.getFont());
             }
 
             @Override
@@ -88,7 +214,6 @@ public class SimpleCode {
                 atualizar();
             }
         });
-
         JScrollPane scrollPane = new JScrollPane(textArea);
         scrollPane.setRowHeaderView(lineNumbers);
         main.add(scrollPane, BorderLayout.CENTER);
@@ -126,7 +251,6 @@ public class SimpleCode {
             JFileChooser fileChooser = new JFileChooser();
             fileChooser.setDialogTitle("Abrir arquivo .cpp");
 
-            // Filtrar apenas arquivos .cpp
             fileChooser.setFileFilter(new javax.swing.filechooser.FileFilter() {
                 @Override
                 public boolean accept(File f) {
@@ -147,7 +271,6 @@ public class SimpleCode {
                     textArea.setText(conteudo);
                     monitorarAlteracoesAtualizaOriginal(textArea, main);
 
-                    // Atualizar caminho do arquivo original
                     path = selecionado.toPath();
 
                 } catch (IOException ex) {
@@ -232,6 +355,67 @@ public class SimpleCode {
                 if (e.getButton() == MouseEvent.BUTTON3) {
                     popupMenu.show(textArea, e.getX(), e.getY());
                 } else if (e.getButton() == MouseEvent.BUTTON2) {
+                    middlePopupMenu.removeAll();
+
+                    Path libPath = Paths.get("SimpleCodeLIB");
+                    if (Files.exists(libPath) && Files.isDirectory(libPath)) {
+                        try (DirectoryStream<Path> stream = Files.newDirectoryStream(libPath)) {
+                            for (Path folder : stream) {
+                                if (Files.isDirectory(folder)) {
+                                    String folderName = folder.getFileName().toString();
+                                    JMenuItem folderItem = new JMenuItem(folderName);
+
+                                    folderItem.addActionListener(_ -> {
+                                        try {
+                                            Path headerFile = folder.resolve("HeaderFileSC.txt");
+                                            if (Files.exists(headerFile)) {
+                                                String headerPath = Files.readString(headerFile).trim();
+                                                Path header = Paths.get(headerPath);
+                                                if (Files.exists(header)) {
+                                                    String includeLine = "#include \""
+                                                            + header.toString().replace("\\", "/") + "\"\n";
+
+                                                    String currentText = textArea.getText();
+                                                    int insertPos = 0;
+
+                                                    Pattern pattern = Pattern
+                                                            .compile("(?m)^\\s*#include\\s+\"[^\"]+\"");
+                                                    Matcher matcher = pattern.matcher(currentText);
+
+                                                    int lastIncludeEnd = -1;
+                                                    while (matcher.find()) {
+                                                        lastIncludeEnd = matcher.end();
+                                                    }
+
+                                                    if (lastIncludeEnd != -1) {
+                                                        insertPos = lastIncludeEnd + 1;
+                                                    }
+
+                                                    textArea.getDocument().insertString(insertPos, includeLine, null);
+
+                                                } else {
+                                                    JOptionPane.showMessageDialog(main,
+                                                            "Arquivo .h não encontrado no caminho informado.",
+                                                            "Erro", JOptionPane.ERROR_MESSAGE);
+                                                }
+                                            } else {
+                                                JOptionPane.showMessageDialog(main,
+                                                        "HeaderFileSC.txt não encontrado na pasta " + folderName,
+                                                        "Aviso", JOptionPane.WARNING_MESSAGE);
+                                            }
+                                        } catch (IOException | BadLocationException ex) {
+                                            ex.printStackTrace();
+                                        }
+                                    });
+
+                                    middlePopupMenu.add(folderItem);
+                                }
+                            }
+                        } catch (IOException ex) {
+                            ex.printStackTrace();
+                        }
+                    }
+
                     middlePopupMenu.show(textArea, e.getX(), e.getY());
                 }
             }
@@ -377,26 +561,37 @@ public class SimpleCode {
         });
 
         KeyStroke ctrlPlus = KeyStroke.getKeyStroke("control EQUALS");
-        textArea.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(ctrlPlus, "AumentarFonte");
-        textArea.getActionMap().put("AumentarFonte", new AbstractAction() {
+        textArea.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(ctrlPlus, "AumentarTudo");
+        textArea.getActionMap().put("AumentarTudo", new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 Font f = textArea.getFont();
-                textArea.setFont(f.deriveFont(f.getSize() + 2f));
+                float novoTamanho = f.getSize() + 2f;
+                textArea.setFont(f.deriveFont(novoTamanho));
+
+                JTextArea lineNumbers = ((JTextArea) ((JScrollPane) textArea.getParent().getParent()).getRowHeader()
+                        .getView());
+                lineNumbers.setFont(lineNumbers.getFont().deriveFont(novoTamanho));
             }
         });
 
         KeyStroke ctrlMinus = KeyStroke.getKeyStroke("control MINUS");
-        textArea.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(ctrlMinus, "DiminuirFonte");
-        textArea.getActionMap().put("DiminuirFonte", new AbstractAction() {
+        textArea.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(ctrlMinus, "DiminuirTudo");
+        textArea.getActionMap().put("DiminuirTudo", new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 Font f = textArea.getFont();
                 if (f.getSize() > 4) {
-                    textArea.setFont(f.deriveFont(f.getSize() - 2f));
+                    float novoTamanho = f.getSize() - 2f;
+                    textArea.setFont(f.deriveFont(novoTamanho));
+
+                    JTextArea lineNumbers = ((JTextArea) ((JScrollPane) textArea.getParent().getParent()).getRowHeader()
+                            .getView());
+                    lineNumbers.setFont(lineNumbers.getFont().deriveFont(novoTamanho));
                 }
             }
         });
+
         KeyStroke ctrlR = KeyStroke.getKeyStroke("control R");
         textArea.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(ctrlR, "Recarregar");
         textArea.getActionMap().put("Recarregar", new AbstractAction() {
