@@ -208,6 +208,7 @@ public class SimpleCode {
     }
 
     private static Path path = Paths.get("ExecSimpleCode.cpp");
+    private static String vers = "1.3";
 
     public static void main(String[] args) {
         JFrame main = new JFrame("SimpleCode");
@@ -228,6 +229,44 @@ public class SimpleCode {
         textArea.setWrapStyleWord(true);
         textArea.setFocusTraversalKeysEnabled(false);
         autoCompleteVSCodeStyle(textArea);
+        Runnable aplicarTema = () -> {
+            Path themePath = Paths.get("theme.txt");
+            String theme = "Classic";
+            if (Files.exists(themePath)) {
+                try {
+                    theme = Files.readString(themePath).trim();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            if (theme.equalsIgnoreCase("Dark")) {
+                textArea.setBackground(Color.BLACK);
+                textArea.setForeground(Color.WHITE);
+                textArea.setCaretColor(Color.WHITE);
+            } else if (theme.equalsIgnoreCase("Classic")) {
+                textArea.setBackground(Color.BLUE);
+                textArea.setForeground(Color.WHITE);
+                textArea.setCaretColor(Color.WHITE);
+            } else if (theme.equalsIgnoreCase("Light")) {
+                textArea.setBackground(Color.WHITE);
+                textArea.setForeground(Color.BLACK);
+                textArea.setCaretColor(Color.BLACK);
+            } else if (theme.equalsIgnoreCase("Red")) {
+                textArea.setBackground(Color.RED);
+                textArea.setForeground(Color.WHITE);
+                textArea.setCaretColor(Color.WHITE);
+            } else if (theme.equalsIgnoreCase("Girl")) {
+                textArea.setBackground(Color.PINK);
+                textArea.setForeground(Color.BLACK);
+                textArea.setCaretColor(Color.BLACK);
+            }
+        };
+
+        aplicarTema.run();
+
+        new Timer(1000, _ -> aplicarTema.run()).start();
+
         String originalContent = "";
         if (Files.exists(path)) {
             try {
@@ -239,7 +278,7 @@ public class SimpleCode {
             }
         }
 
-        JTextArea lineNumbers = new JTextArea("1");
+        JTextArea lineNumbers = new JTextArea();
         lineNumbers.setEditable(false);
         int digitos = Integer.toString(textArea.getLineCount()).length();
         int tamanhoBase = textArea.getFont().getSize();
@@ -352,6 +391,72 @@ public class SimpleCode {
         popupMenu.add(RecarregarItem);
 
         JPopupMenu middlePopupMenu = new JPopupMenu();
+
+        JPopupMenu ctrlClickPopup = new JPopupMenu();
+
+        JMenuItem TemaEscuro = new JMenuItem("Modo escuro");
+        TemaEscuro.addActionListener(_ -> {
+            try {
+                Files.writeString(Paths.get("theme.txt"), "Dark");
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        });
+        ctrlClickPopup.add(TemaEscuro);
+
+        JMenuItem TemaClassico = new JMenuItem("Modo clássico");
+        TemaClassico.addActionListener(_ -> {
+            try {
+                Files.writeString(Paths.get("theme.txt"), "Classic");
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        });
+        ctrlClickPopup.add(TemaClassico);
+
+        JMenuItem TemaOlhoBom = new JMenuItem("Modo claro");
+        TemaOlhoBom.addActionListener(_ -> {
+            try {
+                Files.writeString(Paths.get("theme.txt"), "Light");
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        });
+        ctrlClickPopup.add(TemaOlhoBom);
+
+        JMenuItem TemaVampiro = new JMenuItem("Modo vampiro");
+        TemaVampiro.addActionListener(_ -> {
+            try {
+                Files.writeString(Paths.get("theme.txt"), "Red");
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        });
+        ctrlClickPopup.add(TemaVampiro);
+
+        JMenuItem TemaMule = new JMenuItem("Modo mulher");
+        TemaMule.addActionListener(_ -> {
+            try {
+                Files.writeString(Paths.get("theme.txt"), "Girl");
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        });
+        ctrlClickPopup.add(TemaMule);
+
+        textArea.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                if (e.getButton() == MouseEvent.BUTTON3) {
+                    popupMenu.show(textArea, e.getX(), e.getY());
+                } else if (e.getButton() == MouseEvent.BUTTON2) {
+                    middlePopupMenu.show(textArea, e.getX(), e.getY());
+                } else if (SwingUtilities.isLeftMouseButton(e) &&
+                        (e.getModifiersEx() & InputEvent.CTRL_DOWN_MASK) != 0) {
+                    ctrlClickPopup.show(textArea, e.getX(), e.getY());
+                }
+            }
+        });
 
         Path libPath = Paths.get("SimpleCodeLIB");
 
@@ -750,9 +855,9 @@ public class SimpleCode {
         textArea.getDocument().addDocumentListener(new DocumentListener() {
             private void atualizar() {
                 if (textArea.getText().equals(originalContent)) {
-                    main.setTitle("SimpleCode - SAVED");
+                    main.setTitle("SimpleCode " + vers + " - SAVED");
                 } else {
-                    main.setTitle("SimpleCode - UNSAVED");
+                    main.setTitle("SimpleCode " + vers + " - UNSAVED");
                 }
             }
 
@@ -772,11 +877,11 @@ public class SimpleCode {
             }
         });
 
-        main.setTitle("SimpleCode - SAVED");
+        main.setTitle("SimpleCode " + vers + " - SAVED");
     }
 
     private static void monitorarAlteracoesAtualizaOriginal(JTextArea textArea, JFrame main) {
-        main.setTitle("SimpleCode - SAVED");
+        main.setTitle("SimpleCode " + vers + " - SAVED");
     }
 
     private static String readProcessOutput(Process process) throws IOException {
